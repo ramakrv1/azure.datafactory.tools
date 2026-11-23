@@ -1,0 +1,17 @@
+name: sales.orders
+layer: bronze
+group: sales
+source:
+  type: jdbc
+  options:
+    url: "${SQL_URL}"
+    dbtable: dbo.Orders
+    user: "${secret:kv/sql-user}"
+    password: "${secret:kv/sql-pwd}"
+load: {mode: incremental, watermark_column: modified_at}
+target: {table: bronze.orders}          # catalog injected via env overlay
+transforms:
+  - {op: rename, args: {columns: {OrderID: order_id, CustomerID: customer_id}}}
+quality:
+  - {name: id_not_null, expr: "order_id IS NOT NULL", action: quarantine}
+depends_on: []

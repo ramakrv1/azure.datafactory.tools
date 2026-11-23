@@ -1,0 +1,12 @@
+name: sales.customers
+layer: bronze
+group: sales
+source:
+  type: files
+  format: csv
+  path: "abfss://landing@${STORAGE_ACCOUNT}.dfs.core.windows.net/sales/customers/"
+  options: {header: "true"}
+load: {mode: full}
+target: {table: bronze.customers}
+transforms:
+  - {op: rename, args: {columns: {CustomerID: customer_id}}}

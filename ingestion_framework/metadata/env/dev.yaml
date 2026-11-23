@@ -1,0 +1,10 @@
+variables:
+  CATALOG: dev_lake
+  SQL_URL: "jdbc:sqlserver://sql-dev.example.net:1433;database=sales"
+  STORAGE_ACCOUNT: stdevlanding
+overrides:
+  - entity: "*"
+    path: target.catalog
+    value: "${CATALOG}"
+    action: add
+options: {fail_when_entity_not_found: true, fail_when_path_not_found: true}

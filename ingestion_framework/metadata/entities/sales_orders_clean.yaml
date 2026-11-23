@@ -1,0 +1,12 @@
+name: sales.orders_clean
+layer: silver
+group: sales
+source: {type: table, table: sales.orders}
+load: {mode: merge, keys: [order_id], watermark_column: modified_at}
+target: {table: silver.orders_clean}
+transforms:
+  - {op: join, args: {with: sales.customers, on: [customer_id], how: left}}
+  - {op: dedupe, args: {keys: [order_id], order_by: modified_at}}
+quality:
+  - {name: customer_present, expr: "customer_id IS NOT NULL", action: quarantine}
+  - {name: positive_amount, expr: "amount >= 0", action: fail}
