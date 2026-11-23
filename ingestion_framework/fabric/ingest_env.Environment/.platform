@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Environment",
+    "displayName": "ingest_env",
+    "description": "Runtime 2.0 with the ingest wheel as a custom library."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "fa384f8a-20a6-4fc8-98d7-95e91c23e040"
+  }
+}

@@ -1,0 +1,20 @@
+# Fabric smoke-test environment: runs from the lakehouse Files area, no JDBC source needed.
+variables:
+  CATALOG: ingest_lh              # the lakehouse (schema-enabled): lakehouse.schema.table
+  DATA_ROOT: Files/ingest/data    # relative to the default lakehouse; override with --var / `variables=`
+overrides:
+  - entity: "*"
+    path: target.catalog
+    value: "${CATALOG}"
+    action: add
+  - entity: sales.orders
+    path: source                  # replaces the whole jdbc mapping with a files source
+    value:
+      type: files
+      format: csv
+      path: "${DATA_ROOT}/orders"
+      options: {header: "true", inferSchema: "true"}
+  - entity: sales.customers
+    path: source.path
+    value: "${DATA_ROOT}/customers"
+options: {fail_when_entity_not_found: true, fail_when_path_not_found: true}

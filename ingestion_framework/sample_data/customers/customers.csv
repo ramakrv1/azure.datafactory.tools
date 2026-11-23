@@ -1,0 +1,6 @@
+CustomerID,name,country,modified_at
+1,Ada Lovelace,UK,2024-01-01 09:00:00
+2,Grace Hopper,US,2024-01-01 09:05:00
+3,Edsger Dijkstra,NL,2024-01-02 10:00:00
+4,Barbara Liskov,US,2024-01-03 11:30:00
+5,Alan Turing,UK,2024-01-03 12:00:00

@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ingest"
+version = "0.1.0"
+description = "Portable, metadata-driven PySpark ingestion framework (Databricks first; Fabric and Snowflake via adapters)."
+requires-python = ">=3.10"
+dependencies = ["pyyaml>=6"]
+
+[project.optional-dependencies]
+# Provided by the runtime on Databricks / Fabric; install locally for development.
+spark = ["pyspark>=3.5", "delta-spark>=3.2"]
+# Deploy-time only (Fabric CI/CD script in deploy/); never needed by the wheel at runtime.
+deploy = ["fabric-cicd", "azure-identity", "azure-storage-file-datalake", "requests"]
+dev = ["pytest>=8", "pyspark>=3.5", "delta-spark>=3.2"]
+
+[project.scripts]
+ingest = "ingest.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+markers = ["spark: needs a local SparkSession with Delta"]
