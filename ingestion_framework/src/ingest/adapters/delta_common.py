@@ -36,6 +36,8 @@ class DeltaWriter:
 
     def write(self, df: DataFrame, ref: TableRef, mode: WriteMode, keys: tuple[str, ...] = ()) -> None:
         """Overwrite, append, or upsert on `keys`; see the module docstring for merge semantics."""
+        if mode is WriteMode.merge:
+            assert_unique_keys(df, keys)  # also on the first load, so a merge target never starts with duplicates
         _ensure_schema(self._spark, ref)
         name = ref.fqn()
         if mode is WriteMode.merge and self._spark.catalog.tableExists(name):
@@ -46,7 +48,6 @@ class DeltaWriter:
             df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(name)
 
     def _merge(self, df: DataFrame, name: str, keys: tuple[str, ...]) -> None:
-        assert_unique_keys(df, keys)
         condition = " AND ".join(f"t.{_quote(k)} <=> s.{_quote(k)}" for k in keys)
         (DeltaTable.forName(self._spark, name).alias("t").merge(df.alias("s"), condition)
          .withSchemaEvolution().whenMatchedUpdateAll().whenNotMatchedInsertAll().execute())

@@ -100,6 +100,13 @@ def test_merge_rejects_duplicate_source_keys_and_leaves_table_untouched(harness,
     assert_rows(read(harness, ref), [{"id": 1, "v": "a"}])
 
 
+def test_first_merge_into_missing_table_also_rejects_duplicate_keys(harness, ref):
+    with pytest.raises(ValueError, match=r"merge source has duplicate keys.*id"):
+        write(harness, ref, [(1, "x"), (1, "y")], "id int, v string", WriteMode.merge, ("id",))
+    with pytest.raises(Exception):  # nothing was created
+        read(harness, ref)
+
+
 def test_merge_treats_null_key_as_a_value(harness, ref):
     write(harness, ref, [(None, "a"), (1, "b")], "id int, v string", WriteMode.overwrite)
     write(harness, ref, [(None, "A")], "id int, v string", WriteMode.merge, ("id",))

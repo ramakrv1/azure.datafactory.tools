@@ -47,12 +47,13 @@ class MemoryWriter:
     def write(self, df: DataFrame, ref: TableRef, mode: WriteMode, keys: tuple[str, ...] = ()) -> None:
         """Overwrite, append, or upsert on `keys` (NULL matches NULL; duplicate source keys raise ValueError)."""
         name, existing = ref.fqn(), self._tables.get(ref.fqn())
+        if mode is WriteMode.merge:
+            assert_unique_keys(df, keys)  # also on the first load, so a merge target never starts with duplicates
         if mode is WriteMode.overwrite or existing is None:
             self._tables[name] = df
         elif mode is WriteMode.append:
             self._tables[name] = existing.unionByName(df, allowMissingColumns=True)
         else:
-            assert_unique_keys(df, keys)
             same_key = reduce(lambda a, b: a & b, (F.col(f"t.`{k}`").eqNullSafe(F.col(f"s.`{k}`")) for k in keys))
             kept = existing.alias("t").join(df.select(*keys).alias("s"), same_key, "left_anti")
             self._tables[name] = kept.unionByName(df, allowMissingColumns=True)
