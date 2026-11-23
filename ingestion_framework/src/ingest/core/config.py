@@ -109,8 +109,12 @@ def apply_overlay(
         for d in hits:
             if action == "add":
                 parent = d
-                for k in keys[:-1]:
+                for depth, k in enumerate(keys[:-1], 1):
                     parent = parent.setdefault(k, {})
+                    if not isinstance(parent, dict):
+                        raise MetadataError(
+                            f"{where}: entity '{d['name']}': '{'.'.join(keys[:depth])}' is not a mapping"
+                        )
                 parent[leaf] = o.get("value")
             else:
                 parent = _parent(d, keys)

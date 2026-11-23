@@ -71,20 +71,11 @@ def levels(entities: Iterable[Entity]) -> list[list[str]]:
 
 
 def topological_order(entities: Iterable[Entity], selected: Iterable[Entity] | None = None) -> list[Entity]:
-    """Order entities dependencies-first (Kahn, ties by name); optionally restrict to `selected`."""
+    """Order entities dependencies-first, wave by wave (see `levels`); optionally restrict to `selected`."""
     entities = tuple(entities)
     by_name = {e.name: e for e in entities}
-    graph = build_graph(entities)
-    remaining = dict(graph)
-    order: list[str] = []
-    while remaining:
-        ready = [n for n, deps in remaining.items() if not deps & remaining.keys()]
-        if not ready:
-            raise _blocked(graph, remaining)
-        order.append(min(ready))
-        del remaining[order[-1]]
     wanted = None if selected is None else {e.name for e in selected}
-    return [by_name[n] for n in order if wanted is None or n in wanted]
+    return [by_name[n] for wave in levels(entities) for n in wave if wanted is None or n in wanted]
 
 
 def to_mermaid(entities: Iterable[Entity]) -> str:

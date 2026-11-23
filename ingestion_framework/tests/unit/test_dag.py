@@ -20,7 +20,9 @@ def test_unknown_reference(make_entities):
 
 def test_order_deterministic_ties_by_name(make_entities):
     es = make_entities({"d": ["b", "c"], "c": ["a"], "b": ["a"], "a": [], "z": [], "y": []})
-    assert names(topological_order(es)) == ["a", "b", "c", "d", "y", "z"]
+    # order follows the parallel waves, so `plan` output matches the generated job graph
+    assert names(topological_order(es)) == ["a", "y", "z", "b", "c", "d"]
+    assert names(topological_order(es)) == [n for wave in levels(es) for n in wave]
 
 
 def test_cycle_message(make_entities):

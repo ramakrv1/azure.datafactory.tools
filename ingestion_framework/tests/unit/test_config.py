@@ -56,6 +56,13 @@ def test_add_creates_intermediate_dicts(entity_dict):
     assert es[0]["source"]["options"]["fetchsize"] == 100 and rep.added == 1
 
 
+def test_add_through_non_mapping_is_metadata_error(entity_dict):
+    es = ents(entity_dict, "sales.a")
+    es[0]["source"]["options"] = "not-a-dict"
+    with pytest.raises(MetadataError, match="sales.a.*source.options"):
+        apply_overlay(es, [ov(path="source.options.fetchsize", value=1, action="add")])
+
+
 def test_add_overwrites_existing(entity_dict):
     es = ents(entity_dict, "sales.a")
     apply_overlay(es, [ov(path="target.table", value="x.y", action="add")])
