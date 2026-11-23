@@ -50,7 +50,7 @@ Pure `fn(df, ctx, **args)` steps, validated without Spark (`validate_steps`: unk
 - `filter(expr)`, `with_columns(columns: {name: sql_expr})`, `trim_strings()` (all string columns)
 - `drop_duplicates(keys, order_by=None)`: with `order_by` (`["modified_at desc"]`) keeps the first row per key
 - `hash_key(columns, name)`: sha256 of the null-safe, `||`-joined columns
-- `join(with, on, how='inner', select=None)`: right side is the target of entity `with`
+- `join(with, on, how='inner', select=None)`: right side is the target of entity `with`. In YAML quote the key (`"on"`): bare `on` parses as boolean true
 - `aggregate(group_by, aggs)`: group_by items are columns or `{name: sql_expr}`; aggs are `{name: sql_expr}`
 - `custom(function: "pkg.module:func", args)`: calls `func(df, **args)`
 
