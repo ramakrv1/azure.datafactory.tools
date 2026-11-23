@@ -60,3 +60,27 @@ def test_run_from_metadata_returns_a_json_summary(spark, tmp_path, write_yaml, e
     summary = run_from_metadata(spark, FakeNotebookUtils(), tmp_path / "meta", None, "r9",
                                 state_table=TableRef("fab_state", "run_state"))
     assert json.loads(json.dumps(summary))["succeeded"] == 1 and summary["run_id"] == "r9"
+
+
+# ---- run_notebook: the notebook's one call (string parameters in, summary out)
+def test_run_notebook_parses_notebook_parameters(monkeypatch):
+    from ingest.adapters import fabric
+
+    seen = {}
+    monkeypatch.setattr(fabric, "run_from_metadata", lambda *a, **kw: seen.update(args=a, kw=kw) or {"ok": 1})
+    result = fabric.run_notebook("spark", "nbu", env="fabric-dev", metadata_dir="/m", run_id="42",
+                                 includes=" sales.* , x ", excludes="", state_table="lh.ops.st")
+    assert result == {"ok": 1}
+    assert seen["args"] == ("spark", "nbu", "/m", "fabric-dev", "42", ["sales.*", "x"], [])
+    assert seen["kw"] == {"state_table": TableRef("ops", "st", "lh")}
+
+
+def test_run_notebook_defaults_the_run_id_to_a_utc_timestamp(monkeypatch):
+    import re
+    from ingest.adapters import fabric
+
+    seen = {}
+    monkeypatch.setattr(fabric, "run_from_metadata", lambda *a, **kw: seen.update(args=a) or {})
+    fabric.run_notebook("s", "n", env="e", metadata_dir="/m", run_id="", includes="", excludes="",
+                        state_table="lh.ops.st")
+    assert re.fullmatch(r"\d{8}T\d{6}Z", seen["args"][4])

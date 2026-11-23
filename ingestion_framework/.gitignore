@@ -6,3 +6,4 @@ metastore_db/
 derby.log
 dist/
 build/
+fabric/**/Libraries/CustomLibraries/*.whl

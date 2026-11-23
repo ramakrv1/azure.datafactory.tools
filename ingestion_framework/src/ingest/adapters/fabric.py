@@ -8,6 +8,7 @@ lakehouse name (for example with an env overlay on `target.catalog`). Lakehouse 
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Mapping
 
@@ -44,3 +45,17 @@ def run_from_metadata(
     """Run a metadata project on Fabric and return the JSON-serialisable summary (see `ingest.runner`)."""
     return run_metadata(fabric_engine(spark, notebookutils, state_table), metadata_dir, env, run_id, includes, excludes,
                         variables)
+
+
+def _csv(text: str) -> list[str]:
+    return [part.strip() for part in text.split(",") if part.strip()]
+
+
+def run_notebook(
+    spark, notebookutils, *, env: str, metadata_dir: str, run_id: str, includes: str, excludes: str, state_table: str,
+) -> dict:
+    """Entry point for the runner notebook: its parameters are plain strings (comma-separated selection patterns,
+    `lakehouse.schema.table` state table, empty `run_id` = UTC timestamp)."""
+    run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return run_from_metadata(spark, notebookutils, metadata_dir, env, run_id, _csv(includes), _csv(excludes),
+                             state_table=TableRef.parse(state_table))
