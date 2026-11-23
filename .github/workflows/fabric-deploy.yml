@@ -1,0 +1,51 @@
+name: fabric-deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      smoke:
+        description: Run the smoke test notebook after deploying
+        type: boolean
+        default: true
+  # workflow_dispatch only appears once this file is on the default branch, so pushes trigger it too.
+  push:
+    branches: [claude/nifty-carson-vdka2v, master]
+    paths: ['ingestion_framework/**', '.github/workflows/fabric-deploy.yml']
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Skipped cleanly until the GitHub environment `fabric-dev` has its variables.
+    if: vars.FABRIC_WORKSPACE_ID != ''
+    environment: fabric-dev
+    concurrency: fabric-dev
+    permissions:
+      id-token: write   # OIDC token for azure/login (no client secret)
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'   # fabric-cicd supports 3.9-3.12
+      - name: Install
+        run: pip install build "./ingestion_framework[deploy,dev]"
+      - name: Unit tests that need no Spark (gate)
+        run: pytest -q -m "not spark" tests/unit tests/deploy
+        working-directory: ingestion_framework
+      - name: Build the wheel
+        run: python -m build --wheel --outdir ingestion_framework/dist ingestion_framework
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+      - name: Deploy and smoke test
+        # On push events inputs.smoke is empty, so smoke defaults to on.
+        run: >
+          python ingestion_framework/deploy/fabric_deploy.py
+          --workspace-id "${{ vars.FABRIC_WORKSPACE_ID }}"
+          --repo-dir ingestion_framework/fabric
+          --wheel-dir ingestion_framework/dist
+          --metadata-dir ingestion_framework/metadata
+          --sample-data-dir ingestion_framework/sample_data
+          ${{ github.event_name == 'workflow_dispatch' && !inputs.smoke && '--no-smoke' || '--smoke' }}

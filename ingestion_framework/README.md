@@ -118,8 +118,41 @@ ingest validate --metadata DIR --env ENV          # OK: N entities, or the error
 ingest plan --metadata DIR --env ENV [--include P ...] [--exclude P ...]   # parallel waves of the selection
 ingest docs --metadata DIR --env ENV              # Mermaid dependency graph
 ```
+All subcommands take a repeatable `--var KEY=VALUE`, which overrides the overlay's `variables` (precedence: `--var`,
+then overlay `variables`, then the process environment).
 There is no `run` command: runs happen inside the engine (on Fabric, a runner notebook calls `run_from_metadata`).
 
 ## CI
 `.github/workflows/ingestion-framework-ci.yml` tests Python 3.12 with Spark 4.0 / Delta 4.0 and Python 3.13 with Spark
 4.1 / Delta 4.2 (Fabric Runtime 2.0), with a 90% coverage floor.
+
+## Deploy to Microsoft Fabric
+`.github/workflows/fabric-deploy.yml` deploys to the workspace in the GitHub environment `fabric-dev` and smoke-tests it.
+
+**What gets deployed** (`deploy/fabric_deploy.py`, run by the workflow; it is not part of the wheel):
+1. a schema-enabled lakehouse `ingest_lh` (created through the REST API only if missing);
+2. via fabric-cicd, from `fabric/`: the notebook `ingest_runner` and the environment `ingest_env` (Runtime 2.0) holding
+   the freshly built `ingest` wheel as a custom library. Other items in the workspace are never touched or removed;
+3. `metadata/` to `Files/ingest/metadata/` and `sample_data/` to `Files/ingest/data/` in the lakehouse (OneLake);
+4. one smoke run of `ingest_runner` with `env=fabric-dev` (`metadata/env/fabric-dev.yaml`: the sample `sales.orders` reads
+   CSV files instead of JDBC). The default lakehouse and the environment are bound per run in the job request.
+
+**User setup checklist (once)**
+- a workspace on your F2 capacity (Runtime 2.0);
+- an Entra app registration with a GitHub federated credential for environment `fabric-dev`;
+- the tenant setting "Service principals can use Fabric APIs" enabled;
+- the service principal added to the workspace as Contributor (or higher);
+- a GitHub environment `fabric-dev` with variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `FABRIC_WORKSPACE_ID`
+  (no secrets). Until `FABRIC_WORKSPACE_ID` is set the workflow is skipped.
+
+**Trigger a deploy**: push to `master` or `claude/nifty-carson-vdka2v` with changes under `ingestion_framework/`, or
+Actions, then fabric-deploy, then Run workflow (available once the file is on the default branch; input `smoke`).
+Locally: `pip install "./ingestion_framework[deploy]"`, `az login`, then `python deploy/fabric_deploy.py --help`.
+
+**Reading the result**: the log ends with one line per entity (status, rows read / written / quarantined, error) and
+`smoke test passed` or `FAILED`. The job fails if the notebook did not complete, its exit value is not the JSON run
+summary, or any entity `failed` or was `skipped`. `no_new_data` counts as healthy. Expected on the first run: 3
+entities succeeded, 7 silver rows and 1 quarantined row; a second run reports `no_new_data` for the incremental entities.
+
+**F2 notes**: one runner notebook runs the whole DAG (no `runMultiple` fan-out) so a single small Spark session fits the
+capacity; the first run waits for environment publish and session start, which takes minutes. Pause the capacity when idle.
