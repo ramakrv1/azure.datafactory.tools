@@ -7,7 +7,9 @@ on:
         description: Run the smoke test notebook after deploying
         type: boolean
         default: true
-  # workflow_dispatch only appears once this file is on the default branch, so pushes trigger it too.
+  # workflow_dispatch only appears once this file is on the default branch, so pushes trigger it too:
+  # every push to master, but on the feature branch only commits whose message contains [fabric-deploy]
+  # (each deploy uses capacity on the F2 and may wait for an environment approval).
   push:
     branches: [claude/nifty-carson-vdka2v, master]
     paths: ['ingestion_framework/**', '.github/workflows/fabric-deploy.yml']
@@ -16,7 +18,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     # Skipped cleanly until the GitHub environment `fabric-dev` has its variables.
-    if: vars.FABRIC_WORKSPACE_ID != ''
+    if: >-
+      vars.FABRIC_WORKSPACE_ID != '' && (github.event_name != 'push' || github.ref == 'refs/heads/master'
+      || contains(github.event.head_commit.message, '[fabric-deploy]'))
     environment: fabric-dev
     concurrency: fabric-dev
     permissions:
@@ -32,8 +36,11 @@ jobs:
       - name: Unit tests that need no Spark (gate)
         run: pytest -q -m "not spark" tests/unit tests/deploy
         working-directory: ingestion_framework
-      - name: Build the wheel
-        run: python -m build --wheel --outdir ingestion_framework/dist ingestion_framework
+      - name: Build the wheel, stamped with the commit SHA
+        # The smoke test checks the stamp (--expect-build), so a stale wheel left in the Environment cannot pass.
+        run: |
+          echo "BUILD = \"${GITHUB_SHA}\"" > ingestion_framework/src/ingest/_build.py
+          python -m build --wheel --outdir ingestion_framework/dist ingestion_framework
       - uses: azure/login@v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
@@ -48,4 +55,5 @@ jobs:
           --wheel-dir ingestion_framework/dist
           --metadata-dir ingestion_framework/metadata
           --sample-data-dir ingestion_framework/sample_data
+          --expect-build "${{ github.sha }}"
           ${{ github.event_name == 'workflow_dispatch' && !inputs.smoke && '--no-smoke' || '--smoke' }}

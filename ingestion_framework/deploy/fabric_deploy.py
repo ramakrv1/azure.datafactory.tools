@@ -144,8 +144,9 @@ class RunOutcome:
     summary: dict | None = None
 
 
-def evaluate_run(job: Mapping[str, Any]) -> RunOutcome:
-    """Healthy means: job Completed, exit value is the JSON run summary, no failed or skipped entities."""
+def evaluate_run(job: Mapping[str, Any], expected_build: str | None = None) -> RunOutcome:
+    """Healthy means: job Completed, exit value is the JSON run summary, no failed or skipped entities, and
+    (when `expected_build` is given) the run used that build, so a stale wheel cannot pass the smoke test."""
     problems: list[str] = []
     if job.get("status") != "Completed":
         reason = (job.get("failureReason") or {}).get("message", "")
@@ -167,6 +168,8 @@ def evaluate_run(job: Mapping[str, Any]) -> RunOutcome:
             if summary[key]:
                 noun = "entity" if summary[key] == 1 else "entities"
                 problems.append(f"{summary[key]} {noun} {verb}")
+        if expected_build and summary.get("build") != expected_build:
+            problems.append(f"stale build: the run used {summary.get('build')!r}, expected {expected_build!r}")
     return RunOutcome(not problems, problems, summary)
 
 
@@ -245,7 +248,8 @@ def deploy(cfg, client: FabricClient, publish: Callable[[], None],
                              {"env": cfg.env, "run_id": cfg.run_id})
     job_id = client.start_notebook_run(cfg.workspace_id, notebook_id, body)
     print(f"smoke run started (job {job_id}); waiting up to {cfg.timeout_min} min")
-    outcome = evaluate_run(client.wait_for_job(cfg.workspace_id, notebook_id, job_id, cfg.timeout_min * 60))
+    outcome = evaluate_run(client.wait_for_job(cfg.workspace_id, notebook_id, job_id, cfg.timeout_min * 60),
+                           cfg.expect_build)
     if outcome.summary:
         print(format_table(outcome.summary))
     for problem in outcome.problems:
@@ -265,6 +269,7 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--wheel-dir", help="directory with the built wheel to stage into the Environment item")
     parser.add_argument("--smoke", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--timeout-min", type=int, default=30)
+    parser.add_argument("--expect-build", help="fail the smoke test unless the run reports this build id (commit SHA)")
     args = parser.parse_args(argv)
     args.run_id = default_run_id()
     return args

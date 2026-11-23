@@ -5,6 +5,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Iterable, Mapping
 
+from ingest.build import build_id
 from ingest.core.config import load_project
 from ingest.core.pipeline import run_project
 from ingest.core.selection import select
@@ -22,5 +23,5 @@ def run_metadata(
     entities = load_project(metadata_dir, env, variables=variables)
     results = run_project(entities, engine, run_id, select(entities, includes, excludes))
     count = lambda *statuses: sum(r.status in statuses for r in results)  # noqa: E731
-    return {"run_id": run_id, "env": env, "succeeded": count("succeeded", "no_new_data"),
+    return {"run_id": run_id, "env": env, "build": build_id(), "succeeded": count("succeeded", "no_new_data"),
             "failed": count("failed"), "skipped": count("skipped"), "results": [asdict(r) for r in results]}

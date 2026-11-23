@@ -16,6 +16,7 @@ def test_runs_selected_entities_and_returns_json_summary(spark, tmp_path, write_
     engine, tables = memory_engine({"/data/s.a": spark.createDataFrame([(1,)], "id int")})
     summary = run_metadata(engine, tmp_path, None, "r1", excludes=["*.c"])
     assert json.loads(json.dumps(summary)) == summary
+    assert summary["build"] == "dev"  # identifies the deployed wheel; "dev" when unstamped
     assert (summary["run_id"], summary["env"], summary["succeeded"], summary["failed"], summary["skipped"]) == \
         ("r1", None, 1, 1, 0)
     assert [r["entity"] for r in summary["results"]] == ["s.a", "s.b"]

@@ -145,13 +145,15 @@ There is no `run` command: runs happen inside the engine (on Fabric, a runner no
 - a GitHub environment `fabric-dev` with variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `FABRIC_WORKSPACE_ID`
   (no secrets). Until `FABRIC_WORKSPACE_ID` is set the workflow is skipped.
 
-**Trigger a deploy**: push to `master` or `claude/nifty-carson-vdka2v` with changes under `ingestion_framework/`, or
+**Trigger a deploy**: push to `master` with changes under `ingestion_framework/`; on `claude/nifty-carson-vdka2v`
+only commits whose message contains `[fabric-deploy]` deploy (each deploy uses F2 capacity). Or
 Actions, then fabric-deploy, then Run workflow (available once the file is on the default branch; input `smoke`).
 Locally: `pip install "./ingestion_framework[deploy]"`, `az login`, then `python deploy/fabric_deploy.py --help`.
 
 **Reading the result**: the log ends with one line per entity (status, rows read / written / quarantined, error) and
 `smoke test passed` or `FAILED`. The job fails if the notebook did not complete, its exit value is not the JSON run
-summary, or any entity `failed` or was `skipped`. `no_new_data` counts as healthy. Expected on the first run: 3
+summary, any entity `failed` or was `skipped`, or the run reports a different `build` than the commit SHA stamped
+into the wheel (a stale wheel left in the Environment). `no_new_data` counts as healthy. Expected on the first run: 3
 entities succeeded, 7 silver rows and 1 quarantined row; a second run reports `no_new_data` for the incremental entities.
 
 **F2 notes**: one runner notebook runs the whole DAG (no `runMultiple` fan-out) so a single small Spark session fits the

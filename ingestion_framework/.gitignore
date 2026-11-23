@@ -7,3 +7,4 @@ derby.log
 dist/
 build/
 fabric/**/Libraries/CustomLibraries/*.whl
+src/ingest/_build.py

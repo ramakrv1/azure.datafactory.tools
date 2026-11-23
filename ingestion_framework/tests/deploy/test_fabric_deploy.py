@@ -161,6 +161,15 @@ def test_evaluate_rejects_bad_runs(j, expected):
     assert not outcome.ok and any(expected in p for p in outcome.problems), outcome.problems
 
 
+def test_evaluate_rejects_a_stale_build():
+    outcome = fd.evaluate_run(job(exit_value=json.dumps(summary(build="old"))), expected_build="new")
+    assert not outcome.ok and any("stale" in p and "old" in p and "new" in p for p in outcome.problems)
+
+
+def test_evaluate_accepts_the_expected_build():
+    assert fd.evaluate_run(job(exit_value=json.dumps(summary(build="new"))), expected_build="new").ok
+
+
 def test_failed_job_reports_the_failure_reason():
     outcome = fd.evaluate_run(job("Failed", exit_value="", failureReason={"message": "OOM"}))
     assert any("OOM" in p for p in outcome.problems)
@@ -265,7 +274,7 @@ class FakeSteps:
 
 def config(**over):
     base = dict(workspace_id=WS, repo_dir="fabric", lakehouse="ingest_lh", env="fabric-dev", metadata_dir="meta",
-                sample_data_dir="data", smoke=True, timeout_min=1, run_id="55", wheel_dir=None)
+                sample_data_dir="data", smoke=True, timeout_min=1, run_id="55", wheel_dir=None, expect_build=None)
     return SimpleNamespace(**{**base, **over})
 
 
