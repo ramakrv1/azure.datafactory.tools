@@ -1,12 +1,16 @@
 """In-memory adapter: reference implementation of the engine ports, for tests and local runs."""
 from __future__ import annotations
 
+from functools import reduce
 from typing import Mapping
 
 from pyspark.sql import DataFrame
+from pyspark.sql import functions as F
 
 from ingest.core.model import Source, TableRef
 from ingest.ports import Engine, WriteMode
+
+from .spark_common import assert_unique_keys
 
 
 class MemoryTables(dict):
@@ -41,14 +45,16 @@ class MemoryWriter:
         self._tables = tables
 
     def write(self, df: DataFrame, ref: TableRef, mode: WriteMode, keys: tuple[str, ...] = ()) -> None:
-        """Overwrite, append, or upsert on `keys` (rows with NULL keys never match, so they are inserted)."""
+        """Overwrite, append, or upsert on `keys` (NULL matches NULL; duplicate source keys raise ValueError)."""
         name, existing = ref.fqn(), self._tables.get(ref.fqn())
         if mode is WriteMode.overwrite or existing is None:
             self._tables[name] = df
         elif mode is WriteMode.append:
             self._tables[name] = existing.unionByName(df, allowMissingColumns=True)
         else:
-            kept = existing.join(df.select(*keys).distinct(), on=list(keys), how="left_anti")
+            assert_unique_keys(df, keys)
+            same_key = reduce(lambda a, b: a & b, (F.col(f"t.`{k}`").eqNullSafe(F.col(f"s.`{k}`")) for k in keys))
+            kept = existing.alias("t").join(df.select(*keys).alias("s"), same_key, "left_anti")
             self._tables[name] = kept.unionByName(df, allowMissingColumns=True)
 
 
@@ -85,5 +91,5 @@ def memory_engine(
 ) -> tuple[Engine, MemoryTables]:
     """Build an all-in-memory engine and return it with its tables."""
     tables = MemoryTables()
-    engine = Engine(MemoryReader(sources or {}, tables), MemoryWriter(tables), MemoryState(), DictSecrets(secrets or {}))
+    engine = Engine(MemoryReader({} if sources is None else sources, tables), MemoryWriter(tables), MemoryState(), DictSecrets(secrets or {}))
     return engine, tables

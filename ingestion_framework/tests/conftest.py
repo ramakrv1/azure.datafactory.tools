@@ -1,8 +1,27 @@
-"""Shared fixtures: YAML writers and entity-dict builders."""
+"""Shared fixtures: one Delta-enabled local SparkSession, YAML writers and entity-dict builders."""
 from pathlib import Path
 
 import pytest
 import yaml
+from delta import configure_spark_with_delta_pip
+from pyspark.sql import SparkSession
+
+
+@pytest.fixture(scope="session")
+def spark(tmp_path_factory):
+    """The one SparkSession per process: local, with Delta enabled (harmless for tests that ignore it)."""
+    builder = (
+        SparkSession.builder.master("local[1]").appName("ingest-tests")
+        .config("spark.sql.shuffle.partitions", "1")
+        .config("spark.ui.enabled", "false")
+        .config("spark.sql.session.timeZone", "UTC")
+        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+        .config("spark.sql.warehouse.dir", str(tmp_path_factory.mktemp("warehouse")))
+    )
+    session = configure_spark_with_delta_pip(builder).getOrCreate()
+    yield session
+    session.stop()
 
 
 @pytest.fixture
