@@ -8,6 +8,9 @@ Param(
     [Parameter(Mandatory=$false)]
     [Switch]$MajorRelease,
 
+    [Parameter(Mandatory=$false)]
+    [string]$ResultOutputFormat = "NUnitXml",
+
     [Parameter(Mandatory=$true)]
     [Switch]$InstallModules
 )
@@ -16,11 +19,7 @@ Write-Host " ========= ENVIRONMENT =========="
 Write-Host "Host Name: $($Host.name)"
 Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
 
-$rootPath = Switch ($Host.name) {
-	'Visual Studio Code Host' { split-path $psEditor.GetEditorContext().CurrentFile.Path }
-	'Windows PowerShell ISE Host' { Split-Path -Path $psISE.CurrentFile.FullPath }
-	'ConsoleHost' { $PSScriptRoot }
-}
+$rootPath = $PSScriptRoot
 $folder = Split-Path $rootPath -Parent
 # $MajorRelease = $false
 # $TestFilenameFilter = "*"
@@ -48,13 +47,22 @@ if ($InstallModules) {
         #Install-Module 'Az.DataFactory' -Force -MinimumVersion 1.16.0 -Repository 'PSGallery'
         #Install-Module 'PSScriptAnalyzer' -Force
         #Install-Module 'Pester' -Force -MinimumVersion 5.1.1
+        Install-Module 'Az.Storage' -Force -AllowClobber -Repository 'PSGallery'
         [Environment]::SetEnvironmentVariable("azure.datafactory.tools.unitTestInstalledModules", $true, 'Process');
     }
 } else {
     Write-Host "Installation skipped."
 }
-Import-Module 'Pester' -MinimumVersion 5.3.3
+# Tests require Pester 6+ (e.g. CI runners ship only Pester 5.x)
+if (-not (Get-Module Pester -ListAvailable | Where-Object Version -ge '6.0.0')) {
+    Write-Host "Installing Pester 6+..."
+    Install-Module 'Pester' -MinimumVersion 6.0.0 -Force -SkipPublisherCheck -Scope CurrentUser -Repository 'PSGallery'
+}
+# Unload older Pester (e.g. built-in 3.4.0) so its Should doesn't shadow the newer one
+Get-Module Pester | Where-Object Version -lt '6.0.0' | Remove-Module -Force
+Import-Module 'Pester' -MinimumVersion 6.0.0
 Import-Module 'PSScriptAnalyzer'
+Import-Module 'Az.Storage'
 Import-Module "$folder\azure.datafactory.tools.psd1"
 
 Write-Host "=============== Modules ================"
@@ -70,7 +78,7 @@ try {
     $configuration.Run.Exit = $true
     $configuration.Should.ErrorAction = 'Continue'
     $configuration.CodeCoverage.Enabled = $false
-    $configuration.TestResult.OutputFormat = "NUnitXml"
+    $configuration.TestResult.OutputFormat = "JUnitXml"
     $configuration.TestResult.OutputPath = "$folder\TEST-Results.xml"
     $configuration.TestResult.Enabled = $true
     $configuration.Output.Verbosity = 'Detailed'
@@ -93,4 +101,5 @@ try {
     Pop-Location
 }
 
-# . ".\test\!RunAllTests.ps1" -folder '.\test' -TestFilenameFilter '*' -MajorRelease:$true -InstallModules:$false 
+# Connect-AzAccount
+# . ".\test\!RunAllTests.ps1" -folder '.\test' -TestFilenameFilter 'Inc*' -MajorRelease:$true -InstallModules:$false 

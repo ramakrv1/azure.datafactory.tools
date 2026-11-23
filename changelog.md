@@ -4,6 +4,61 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.19.1] - 2026-10-18
+### Fixed
+* The PowerShell Gallery package contains only the module files (`public`, `private`, `*.psd1`, `*.psm1`) instead of the whole repository #518
+
+## [1.19.0] - 2026-10-16
+### Added
+* Stopping a trigger now retries up to 5 times (and waits while the trigger is provisioning), like starting a trigger #404
+### Fixed
+* `New-AdfPublishOption` now throws (ADFT0026) when `FilterFilePath` does not exist, instead of a non-terminating error #501
+
+## [1.18.0] - 2026-07-01
+### Added
+* `Publish-AdfV2FromJson` now supports terraform-like planning via `-DryRun`/`-Plan`, including structured `DryRunPlan` output (Create/Update/Delete/Unchanged) #360
+
+## [1.17.1] - 2026-07-01
+### Fixed
+* Further fixes of `DeleteNotInSource` with deserialization issue #480 
+* `Publish-AdfV2FromJson` no longer silently continues after errors: config path errors (ADFT0010) and deployment failures (e.g. Azure Policy blocks) now propagate as terminating errors to the caller #472
+* Scheduled trigger recurrence times now preserve explicit timezone offsets during config-driven updates, preventing shifted deployment times #402
+
+## [1.16.0] - 2026-06-06
+### Fixed
+* `DeleteNotInSource` no longer fails with "Unable to deserialize the response" when ADF contains object types unsupported by the installed Az.DataFactory module version - REST API fallback added to `Get-AdfFromService` #480 #473
+* Fixed ClientAssertionCredential authentication failure for federated identity (OIDC) credentials by removing redundant `Get-AzAccessToken` calls in `Get-AzDFV2Credential` and `Remove-AdfObjectRestAPI` #492
+
+## [1.15.0] - 2026-05-26
+### Added
+* Credential type of ADF objects is now supported for deployment via REST API
+### Fixed
+* Starting blob event trigger fails with 'Resource cannot be updated during provisioning' - now waits for provisioning to complete before retrying #484, #474, #463
+* Fixed REST API calls failing with 401 Unauthorized due to Az.Accounts 5.x returning SecureString from Get-AzAccessToken
+* Fixed DryRun not loading deployment state from storage for hash comparison #475
+* README.md updated and new Structured Documentation created
+
+## [1.14.0] - 2025-10-24
+### Added
+* New input parameters for `Get-AdfDocDiagram` function: Include, Exclude.
+
+## [1.13.1] - 2025-10-19
+### Fixed
+* Fixed trigger start retry logic to exit immediately on successful start instead of running all 5 attempts #465
+* Fixed CSV parametrization line count reporting when CSV contains empty lines #446
+
+## [1.13.0] - 2025-05-20
+### Fixed
+* Adopted to breaking change in Az.Accounts v5.0 with Get-AzAccessToken that doesn't support String anymore #449
+
+## [1.12.0] - 2025-03-20
+### Added
+* Error during the import when required Az.Resource module is not loaded #336
+* Az.DataFactory module is required to import adftools
+* Added function `Set-AdfToolsAuthToken` to enable changing URL to API when target environment is different than default Global Azure #356 #441
+### Fixed
+* Error when deleting credentials #403
+
 ## [1.11.2] - 2024-12-04
 ### Fixed
 * Unknown object type: SparkJobDefinition #428 by adding the type to the ignored list
