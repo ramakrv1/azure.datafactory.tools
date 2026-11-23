@@ -237,7 +237,7 @@ def _parse_target(d: Any, where: str) -> TableRef:
     catalog = d.get("catalog")
     if catalog and ref.catalog and catalog != ref.catalog:
         raise MetadataError(f"{where}.target: catalog '{catalog}' conflicts with table '{d['table']}'")
-    return TableRef(ref.schema, ref.name, ref.catalog or catalog)
+    return TableRef(ref.schema, ref.name, ref.catalog or catalog or None)  # an empty catalog means none
 
 
 def parse_entities(dicts: list[dict]) -> tuple[Entity, ...]:

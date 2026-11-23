@@ -9,7 +9,7 @@ lakehouse name (for example with an env overlay on `target.catalog`). Lakehouse 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from ingest.adapters.delta_common import DeltaStateStore, DeltaWriter
 from ingest.adapters.spark_common import SparkReader
@@ -39,6 +39,8 @@ def fabric_engine(spark, notebookutils, state_table: TableRef) -> Engine:
 def run_from_metadata(
     spark, notebookutils, metadata_dir: str | Path, env: str | None, run_id: str,
     includes: Iterable[str] = (), excludes: Iterable[str] = (), *, state_table: TableRef,
+    variables: Mapping[str, str] | None = None,
 ) -> dict:
     """Run a metadata project on Fabric and return the JSON-serialisable summary (see `ingest.runner`)."""
-    return run_metadata(fabric_engine(spark, notebookutils, state_table), metadata_dir, env, run_id, includes, excludes)
+    return run_metadata(fabric_engine(spark, notebookutils, state_table), metadata_dir, env, run_id, includes, excludes,
+                        variables)

@@ -33,3 +33,14 @@ def test_docs_prints_mermaid(capsys):
     assert main(["docs", "--metadata", METADATA, "--env", "dev"]) == 0
     out = capsys.readouterr().out
     assert out.startswith("graph LR") and "-->" in out
+
+
+def test_var_option_is_repeatable_and_overrides_overlay_variables(capsys):
+    args = ["plan", "--metadata", METADATA, "--env", "fabric-dev"]
+    assert main(args + ["--var", "DATA_ROOT=/tmp/x", "--var", "CATALOG="]) == 0
+
+
+def test_var_option_rejects_malformed_pairs(capsys):
+    import pytest
+    with pytest.raises(SystemExit):
+        main(["plan", "--metadata", METADATA, "--env", "dev", "--var", "NOEQUALS"])

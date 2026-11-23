@@ -32,6 +32,13 @@ def _docs(entities, args) -> None:
     print(dag.to_mermaid(entities), end="")
 
 
+def _key_value(text: str) -> tuple[str, str]:
+    key, sep, value = text.partition("=")
+    if not (sep and key):
+        raise argparse.ArgumentTypeError(f"expected KEY=VALUE, got '{text}'")
+    return key, value
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ingest")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -41,6 +48,8 @@ def _parser() -> argparse.ArgumentParser:
         sub = commands.add_parser(name, help=help_)
         sub.add_argument("--metadata", required=True, help="metadata directory")
         sub.add_argument("--env", required=True, help="environment overlay name ('' for none)")
+        sub.add_argument("--var", action="append", default=[], type=_key_value, metavar="KEY=VALUE",
+                         help="token value, overrides the overlay's variables (repeatable)")
         if name == "plan":
             sub.add_argument("--include", action="append", default=[], metavar="PATTERN")
             sub.add_argument("--exclude", action="append", default=[], metavar="PATTERN")
@@ -52,7 +61,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI; returns the exit code (0 ok, 2 invalid metadata)."""
     args = _parser().parse_args(argv)
     try:
-        args.handler(load_project(args.metadata, args.env or None), args)
+        args.handler(load_project(args.metadata, args.env or None, variables=dict(args.var)), args)
     except MetadataError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2

@@ -202,3 +202,43 @@ def test_resolve_secrets_rejects_malformed_token(token):
 
     with pytest.raises(MetadataError, match="malformed secret token"):
         resolve_secrets({"p": token}, _Secrets())
+
+
+# ---- explicit variables (precedence: explicit > overlay > environ)
+def _var_project(tmp_path, write_yaml, entity_dict):
+    write_yaml(tmp_path / "entities" / "a.yaml",
+               entity_dict("sales.a", source={"type": "files", "format": "csv", "path": "${ROOT}/a"}))
+    write_yaml(tmp_path / "env" / "dev.yaml", {"variables": {"ROOT": "overlay"}})
+
+
+def test_explicit_variables_beat_overlay_variables(tmp_path, write_yaml, entity_dict):
+    _var_project(tmp_path, write_yaml, entity_dict)
+    (e,) = load_project(tmp_path, "dev", environ={"ROOT": "environ"}, variables={"ROOT": "explicit"})
+    assert e.source.path == "explicit/a"
+
+
+def test_overlay_variables_beat_environ_and_explicit_works_without_env(tmp_path, write_yaml, entity_dict):
+    _var_project(tmp_path, write_yaml, entity_dict)
+    (e,) = load_project(tmp_path, "dev", environ={"ROOT": "environ"})
+    assert e.source.path == "overlay/a"
+    (e,) = load_project(tmp_path, None, environ={}, variables={"ROOT": "x"})
+    assert e.source.path == "x/a"
+
+
+def test_empty_catalog_variable_means_no_catalog(tmp_path, write_yaml, entity_dict):
+    write_yaml(tmp_path / "entities" / "a.yaml", entity_dict("sales.a"))
+    write_yaml(tmp_path / "env" / "dev.yaml", {
+        "variables": {"CATALOG": "lh"},
+        "overrides": [{"entity": "*", "path": "target.catalog", "value": "${CATALOG}", "action": "add"}]})
+    (e,) = load_project(tmp_path, "dev", environ={}, variables={"CATALOG": ""})
+    assert e.target.catalog is None and e.target.fqn() == "bronze.a"
+
+
+def test_overlay_can_replace_a_whole_source_mapping(tmp_path, write_yaml, entity_dict):
+    write_yaml(tmp_path / "entities" / "a.yaml", entity_dict("sales.a", source={"type": "jdbc", "options": {"url": "u"}}))
+    write_yaml(tmp_path / "env" / "dev.yaml", {"overrides": [{
+        "entity": "sales.a", "path": "source",
+        "value": {"type": "files", "format": "csv", "path": "${P}", "options": {"header": "true"}}}],
+        "variables": {"P": "/x"}})
+    (e,) = load_project(tmp_path, "dev", environ={})
+    assert (e.source.type, e.source.path, e.source.options) == ("files", "/x", {"header": "true"})

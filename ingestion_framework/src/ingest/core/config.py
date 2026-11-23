@@ -194,14 +194,19 @@ def _load_overlay(metadata_dir: Path, env: str) -> dict:
 
 
 def load_project(
-    metadata_dir: str | Path, env: str | None, environ: Mapping[str, str] | None = None
+    metadata_dir: str | Path, env: str | None, environ: Mapping[str, str] | None = None,
+    variables: Mapping[str, str] | None = None,
 ) -> tuple[Entity, ...]:
-    """Load entities, apply the `env` overlay (if any), expand tokens and parse into entities."""
+    """Load entities, apply the `env` overlay (if any), expand tokens and parse into entities.
+
+    Token precedence: explicit `variables`, then the overlay's `variables`, then `environ`.
+    """
     metadata_dir = Path(metadata_dir)
     dicts = load_entity_dicts(metadata_dir)
-    variables: Mapping[str, str] = {}
+    merged: dict[str, str] = {}
     if env:
         overlay = _load_overlay(metadata_dir, env)
-        variables = overlay.get("variables") or {}
+        merged.update(overlay.get("variables") or {})
         apply_overlay(dicts, overlay.get("overrides") or [], **(overlay.get("options") or {}))
-    return parse_entities(expand_tokens(dicts, variables, environ))
+    merged.update(variables or {})
+    return parse_entities(expand_tokens(dicts, merged, environ))

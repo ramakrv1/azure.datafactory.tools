@@ -5,7 +5,7 @@ source: {type: table, table: sales.orders}
 load: {mode: merge, keys: [order_id], watermark_column: modified_at}
 target: {table: silver.orders_clean}
 transforms:
-  - {op: join, args: {with: sales.customers, "on": [customer_id], how: left}}
+  - {op: join, args: {with: sales.customers, "on": [customer_id], how: left, select: [name, country]}}
   - {op: drop_duplicates, args: {keys: [order_id], order_by: ["modified_at desc"]}}
 quality:
   - {name: customer_present, expr: "customer_id IS NOT NULL", action: quarantine}

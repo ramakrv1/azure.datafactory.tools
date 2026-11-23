@@ -20,3 +20,11 @@ def test_runs_selected_entities_and_returns_json_summary(spark, tmp_path, write_
         ("r1", None, 1, 1, 0)
     assert [r["entity"] for r in summary["results"]] == ["s.a", "s.b"]
     assert summary["results"][1]["status"] == "failed" and "bronze.a" in tables
+
+
+def test_variables_are_passed_to_the_project_loader(spark, tmp_path, write_yaml, entity_dict):
+    write_yaml(tmp_path / "entities" / "a.yaml",
+               entity_dict("s.a", source={"type": "files", "format": "csv", "path": "${ROOT}/a"}))
+    engine, _ = memory_engine({"/data/a": spark.createDataFrame([(1,)], "id int")})
+    summary = run_metadata(engine, tmp_path, None, "r1", variables={"ROOT": "/data"})
+    assert summary["succeeded"] == 1
