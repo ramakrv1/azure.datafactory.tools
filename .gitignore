@@ -340,4 +340,4 @@ Tests/Scratch.ps1
 *TestResults*.xml
 Tests/config*.json
 !Tests/config.sample.json
-Tests/aaTest.ps1
+Tests/aaTest.ps1.venv/
