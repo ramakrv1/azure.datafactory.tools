@@ -18,3 +18,10 @@ def test_sample_metadata_loads_and_orders(env, catalog):
     by_name = {e.name: e for e in es}
     assert by_name["sales.orders"].source.options["password"] == "${secret:kv/sql-pwd}"
     assert by_name["sales.orders"].source.options["url"].startswith("jdbc:")
+
+
+def test_sample_transforms_are_valid():
+    from ingest.core.transforms import validate_steps
+
+    for e in load_project(METADATA, env="dev", environ={}):
+        validate_steps(e.transforms, e.name)
