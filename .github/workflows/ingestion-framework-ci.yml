@@ -10,15 +10,28 @@ on:
 
 jobs:
   test:
+    name: py${{ matrix.python }} spark${{ matrix.pyspark }} delta${{ matrix.delta }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {python: "3.12", pyspark: "4.0.*", delta: "4.0.*"}
+          # Fabric Runtime 2.0 is Spark 4.1 / Python 3.13; delta-spark 4.2 is the release built for Spark 4.1.
+          - {python: "3.13", pyspark: "4.1.1", delta: "4.2.0"}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - run: pip install -e "ingestion_framework[dev]"
-      - run: pytest -q ingestion_framework/tests
+      - uses: actions/cache@v4
+        with:
+          path: ~/.ivy2
+          key: ivy-${{ matrix.pyspark }}-${{ matrix.delta }}
+      - run: pip install -e "ingestion_framework[dev]" "pyspark==${{ matrix.pyspark }}" "delta-spark==${{ matrix.delta }}" pytest-cov
+      - run: pytest -q --cov=ingest --cov-report=term-missing --cov-fail-under=90
+        working-directory: ingestion_framework

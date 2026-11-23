@@ -8,7 +8,9 @@ The metadata, override, selection and DAG patterns are ported from the PowerShel
 ```
 src/ingest/core/      engine-agnostic: model, config, selection, dag, transforms, quality, pipeline
 src/ingest/ports.py   engine ports (Protocols) and the `Engine` bundle
-src/ingest/adapters/  engine adapters (`memory` is the reference; Databricks etc. later)
+src/ingest/adapters/  engine adapters: memory (reference), spark_common, delta_common, fabric
+src/ingest/runner.py  engine-neutral `run_metadata` (load, select, run, JSON summary)
+src/ingest/cli.py     `ingest validate|plan|docs`
 metadata/entities/    entity definitions (YAML)
 metadata/env/<env>.yaml  per-environment overlay
 tests/unit/           no Spark needed
@@ -89,3 +91,35 @@ As in `ApplyExclusionOptions`, excludes apply only when no includes are given. R
 pip install -e ".[dev]"
 pytest -q
 ```
+
+## Adapters
+- `memory`: reference implementation of every port, in memory.
+- `spark_common.SparkReader`: `files` (`format`, `options`, `path`) and `jdbc` sources, `read_table`. A `table` source never
+  reaches `read`; the pipeline resolves it through `read_table`.
+- `delta_common`: `DeltaWriter` (managed tables by name; creates the schema and the table when absent) and `DeltaStateStore`
+  (Delta table `entity, state JSON, updated_at`, one row per entity). Shared by Fabric and Databricks.
+- `fabric`: `fabric_engine(spark, notebookutils, state_table)`, `FabricSecretProvider` and `run_from_metadata`.
+  `notebookutils` is injected, never imported. Set `TableRef.catalog` to the lakehouse name (`lakehouse.schema.table`).
+  In `${secret:<vault>/<name>}` the scope is the Key Vault name (a full `https://` URL also works).
+
+Merge semantics (both memory and Delta, pinned by the contract suite):
+- duplicate keys in the source raise `ValueError("merge source has duplicate keys ...")` before anything is written;
+- keys match null-safely: a NULL key is a value, so a repeated load updates that row instead of adding copies;
+- new source columns are added to the table (schema evolution); a merge into a missing table creates it.
+
+## Contract suite
+`tests/contract/test_adapter_contract.py` runs the same tests against memory and local Delta: overwrite/append/merge with
+schema evolution, merge key rules, read-after-write, state round-trip and a two-run incremental pipeline. A new adapter
+adds one harness to `ENGINES` and must pass unchanged. All tests share one Delta-enabled local SparkSession.
+
+## CLI
+```
+ingest validate --metadata DIR --env ENV          # OK: N entities, or the error and exit code 2
+ingest plan --metadata DIR --env ENV [--include P ...] [--exclude P ...]   # parallel waves of the selection
+ingest docs --metadata DIR --env ENV              # Mermaid dependency graph
+```
+There is no `run` command: runs happen inside the engine (on Fabric, a runner notebook calls `run_from_metadata`).
+
+## CI
+`.github/workflows/ingestion-framework-ci.yml` tests Python 3.12 with Spark 4.0 / Delta 4.0 and Python 3.13 with Spark
+4.1 / Delta 4.2 (Fabric Runtime 2.0), with a 90% coverage floor.
