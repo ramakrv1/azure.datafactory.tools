@@ -144,3 +144,16 @@ def test_parse_entities_and_duplicates(entity_dict):
     assert [e.name for e in es] == ["a.x", "a.y"]
     with pytest.raises(MetadataError, match="duplicate.*a.x"):
         parse_entities([entity_dict("a.x"), entity_dict("a.x")])
+
+
+@pytest.mark.parametrize("over, where", [
+    ({"load": {"mode": "merge", "keys": "order_id"}}, "load.keys"),
+    ({"depends_on": "sales.customers"}, "depends_on"),
+    ({"transforms": {"op": "rename"}}, "transforms"),
+    ({"quality": {"name": "r", "expr": "1=1"}}, "quality"),
+    ({"depends_on": ["ok", 3]}, "depends_on"),
+])
+def test_list_fields_reject_scalars_and_mappings(entity_dict, over, where):
+    # A bare string used to be iterated into characters, e.g. keys 'order_id' -> ('o','r',...).
+    with pytest.raises(MetadataError, match=f"{where}.*list"):
+        Entity.from_dict(entity_dict(**over))

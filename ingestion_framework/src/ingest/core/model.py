@@ -36,6 +36,23 @@ def _check_keys(d: Mapping, allowed: set, where: str) -> None:
         raise MetadataError(f"{where}: unknown field(s) {', '.join(map(str, unknown))}")
 
 
+def _list(value: Any, where: str) -> list:
+    """Return `value` as a list; None means empty. Scalars and mappings are errors (a str would split into chars)."""
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise MetadataError(f"{where}: expected a list, got {type(value).__name__}")
+    return value
+
+
+def _str_tuple(value: Any, where: str) -> tuple[str, ...]:
+    """Return a list of strings as a tuple; anything else is an error."""
+    items = _list(value, where)
+    if not all(isinstance(i, str) and i for i in items):
+        raise MetadataError(f"{where}: expected a list of non-empty strings")
+    return tuple(items)
+
+
 def _require(d: Mapping, field_name: str, where: str) -> Any:
     if d.get(field_name) in (None, ""):
         raise MetadataError(f"{where}: missing required field '{field_name}'")
@@ -114,7 +131,7 @@ class Load:
         except ValueError:
             raise MetadataError(f"{where}.load: invalid mode '{d.get('mode')}', expected one of "
                                 f"{[m.value for m in LoadMode]}") from None
-        keys, wm = tuple(d.get("keys") or ()), d.get("watermark_column")
+        keys, wm = _str_tuple(d.get("keys"), f"{where}.load.keys"), d.get("watermark_column")
         if mode is LoadMode.merge and not keys:
             raise MetadataError(f"{where}.load: merge requires 'keys'")
         if mode is LoadMode.incremental and not wm:
@@ -203,10 +220,10 @@ class Entity:
             target=_parse_target(_require(d, "target", where), where),
             load=Load.from_dict(d.get("load", {}), where),
             transforms=tuple(TransformStep.from_dict(t, f"{where}.transforms[{i}]")
-                             for i, t in enumerate(d.get("transforms") or ())),
+                             for i, t in enumerate(_list(d.get("transforms"), f"{where}.transforms"))),
             quality=tuple(QualityRule.from_dict(q, f"{where}.quality[{i}]")
-                          for i, q in enumerate(d.get("quality") or ())),
-            depends_on=tuple(d.get("depends_on") or ()),
+                          for i, q in enumerate(_list(d.get("quality"), f"{where}.quality"))),
+            depends_on=_str_tuple(d.get("depends_on"), f"{where}.depends_on"),
         )
 
 

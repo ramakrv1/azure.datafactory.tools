@@ -28,6 +28,17 @@ def table(tables, name):
     return tables[f"cat.bronze.{name}"].drop("_ingested_at", "_run_id", "_source_entity")
 
 
+
+def test_rows_written_counts_rows_after_transforms(spark):
+    src = spark.createDataFrame([(1, "a"), (1, "b"), (2, "c")], "id int, v string")
+    engine, tables = memory_engine({"/in/t": src})
+    e = make("t", transforms=[{"op": "drop_duplicates", "args": {"keys": ["id"]}}],
+             quality=[{"name": "not_c", "expr": "v <> 'c'", "action": "quarantine"}])
+    res = run_entity(e, {"t": e}, engine, "r1")
+    assert (res.rows_read, res.rows_written, res.rows_quarantined) == (3, 1, 1)
+    assert table(tables, "t").count() == 1 and engine.state.get("t")["rows_written"] == 1
+
+
 INCR = {"load": {"mode": "incremental", "watermark_column": "modified_at"}}
 
 

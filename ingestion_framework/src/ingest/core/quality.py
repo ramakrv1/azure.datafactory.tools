@@ -19,12 +19,13 @@ class DataQualityError(Exception):
 
 @dataclass(frozen=True)
 class QualityResult:
-    """Rows to keep, rows set aside (None without quarantine rules), per-rule failure counts."""
+    """Rows to keep, rows set aside (None without quarantine rules), per-rule failure counts, row totals."""
 
     valid: DataFrame
     quarantine: DataFrame | None
     failures: dict[str, int]
     quarantined: int = 0
+    rows: int = 0  # rows evaluated, i.e. after transforms
 
 
 def _failed(rule: QualityRule) -> Column:
@@ -36,10 +37,11 @@ def apply_quality(df: DataFrame, rules: Iterable[QualityRule]) -> QualityResult:
     """Evaluate the rules in a single aggregation, then raise, quarantine or just count per rule action."""
     rules = tuple(rules)
     if not rules:
-        return QualityResult(df, None, {})
+        return QualityResult(df, None, {}, rows=df.count())
     quarantine_rules = [r for r in rules if r.action == "quarantine"]
     any_quarantined = reduce(lambda a, b: a | b, (_failed(r) for r in quarantine_rules), F.lit(False))
     row = df.agg(
+        F.count(F.lit(1)).alias("_rows"),
         F.count(F.when(any_quarantined, 1)).alias("_quarantined"),
         *[F.count(F.when(_failed(r), 1)).alias(f"_r{i}") for i, r in enumerate(rules)],
     ).first()
@@ -48,11 +50,12 @@ def apply_quality(df: DataFrame, rules: Iterable[QualityRule]) -> QualityResult:
     if broken:
         raise DataQualityError("fail rule(s) violated: " + ", ".join(broken))
     if not quarantine_rules:
-        return QualityResult(df, None, failures)
+        return QualityResult(df, None, failures, rows=row["_rows"])
     tags = F.array_compact(F.array(*[F.when(_failed(r), F.lit(r.name)) for r in quarantine_rules]))
     return QualityResult(
         valid=df.filter(~any_quarantined),
         quarantine=df.withColumn(QUARANTINE_COLUMN, tags).filter(F.size(QUARANTINE_COLUMN) > 0),
         failures=failures,
         quarantined=row["_quarantined"],
+        rows=row["_rows"],
     )

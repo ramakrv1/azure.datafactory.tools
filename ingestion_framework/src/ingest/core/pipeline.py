@@ -22,8 +22,8 @@ _WRITE_MODES = {LoadMode.full: WriteMode.overwrite, LoadMode.incremental: WriteM
 
 @dataclass(frozen=True)
 class RunResult:
-    """Outcome of one entity run. `rows_written` is `rows_read - rows_quarantined` (transforms that drop or
-    multiply rows are not recounted)."""
+    """Outcome of one entity run. `rows_read` counts source rows; `rows_written` counts rows after transforms,
+    minus quarantined ones (both come from aggregations the run needs anyway)."""
 
     entity: str
     status: str  # succeeded | no_new_data | failed | skipped
@@ -87,7 +87,7 @@ def _run(entity: Entity, project: Mapping[str, Entity], engine: Engine, run_id: 
         target = entity.target
         engine.writer.write(quality.quarantine, TableRef(target.schema, target.name + "_quarantine", target.catalog),
                             WriteMode.append)
-    written = rows_read - quality.quarantined
+    written = quality.rows - quality.quarantined
     engine.state.put(entity.name, {"watermark": new_wm, "last_run_id": run_id, "last_status": "succeeded",
                                    "rows_written": written, "updated_at": _now()})
     return RunResult(entity.name, "succeeded", rows_read, written, quality.quarantined, new_wm)

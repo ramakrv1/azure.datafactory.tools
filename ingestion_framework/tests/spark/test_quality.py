@@ -19,6 +19,7 @@ def rule(name, expr, action):
 def test_no_rules_returns_input_unchanged(df):
     res = apply_quality(df, ())
     assert res.valid is df and res.quarantine is None and res.failures == {} and res.quarantined == 0
+    assert res.rows == 4  # rows evaluated, counted even without rules
 
 
 def test_warn_counts_but_keeps_rows(df):
