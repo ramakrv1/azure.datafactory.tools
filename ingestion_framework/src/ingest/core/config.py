@@ -7,9 +7,11 @@ import warnings
 from dataclasses import dataclass
 from fnmatch import fnmatchcase
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 import yaml
+
+from ingest.ports import SecretProvider
 
 from .model import Entity, MetadataError, parse_entities
 
@@ -129,6 +131,17 @@ def apply_overlay(
     return OverlayReport(counts["update"], counts["add"], counts["remove"])
 
 
+def _walk_strings(obj: Any, fn: Callable[[str], str]) -> Any:
+    """Return a copy of a nested dict/list structure with `fn` applied to every string."""
+    if isinstance(obj, str):
+        return fn(obj)
+    if isinstance(obj, dict):
+        return {k: _walk_strings(v, fn) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_walk_strings(v, fn) for v in obj]
+    return obj
+
+
 def expand_tokens(obj: Any, variables: Mapping[str, str], environ: Mapping[str, str] | None = None) -> Any:
     """Replace `${NAME}` in all strings (variables, then environ); keep `${secret:..}`, unescape `$${X}`."""
     environ = os.environ if environ is None else environ
@@ -147,19 +160,25 @@ def expand_tokens(obj: Any, variables: Mapping[str, str], environ: Mapping[str, 
         missing.add(name)
         return m.group(0)
 
-    def walk(x: Any) -> Any:
-        if isinstance(x, str):
-            return _TOKEN.sub(sub, x)
-        if isinstance(x, dict):
-            return {k: walk(v) for k, v in x.items()}
-        if isinstance(x, list):
-            return [walk(v) for v in x]
-        return x
-
-    result = walk(obj)
+    result = _walk_strings(obj, lambda text: _TOKEN.sub(sub, text))
     if missing:
         raise MetadataError(f"unresolved token(s): {', '.join(sorted(missing))}")
     return result
+
+
+def resolve_secrets(obj: Any, provider: SecretProvider) -> Any:
+    """Replace `${secret:scope/key}` in all strings via `provider`; call only at run time, never log the result."""
+
+    def sub(m: re.Match) -> str:
+        name = m["name"]
+        if m["esc"] is not None or not name.startswith("secret:"):
+            return m.group(0)
+        scope, sep, key = name[len("secret:"):].partition("/")
+        if not (sep and scope and key):
+            raise MetadataError(f"malformed secret token '${{{name}}}': expected ${{secret:scope/key}}")
+        return provider.get(scope, key)
+
+    return _walk_strings(obj, lambda text: _TOKEN.sub(sub, text))
 
 
 def _load_overlay(metadata_dir: Path, env: str) -> dict:

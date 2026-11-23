@@ -182,3 +182,23 @@ def test_options_from_overlay_file(tmp_path, write_yaml, entity_dict):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         assert len(load_project(tmp_path, "dev", environ={})) == 1
+
+
+class _Secrets:
+    def get(self, scope, key):
+        return f"<{scope}:{key}>"
+
+
+def test_resolve_secrets_walks_nested_structures():
+    from ingest.core.config import resolve_secrets
+
+    obj = {"a": "${secret:kv/pwd}", "b": ["x-${secret:s/k}-y", 1], "c": {"d": "${OTHER}"}}
+    assert resolve_secrets(obj, _Secrets()) == {"a": "<kv:pwd>", "b": ["x-<s:k>-y", 1], "c": {"d": "${OTHER}"}}
+
+
+@pytest.mark.parametrize("token", ["${secret:nokey}", "${secret:/k}", "${secret:s/}"])
+def test_resolve_secrets_rejects_malformed_token(token):
+    from ingest.core.config import resolve_secrets
+
+    with pytest.raises(MetadataError, match="malformed secret token"):
+        resolve_secrets({"p": token}, _Secrets())
